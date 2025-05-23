@@ -8,9 +8,9 @@ def read_docx(file_path):
     return "\n".join([para.text for para in doc.paragraphs])
 
 # Email settings
-EMAIL_SENDER = 'your_email@example.com'
-EMAIL_PASSWORD = 'your_email_password'
-EMAIL_RECEIVER = 'receiver_email@example.com'
+EMAIL_SENDER = 'gpps0618@gmail.com'
+EMAIL_PASSWORD = 'ndgf miva kgch kzyf'
+EMAIL_RECEIVER = 'yamini1599singh@gmail.com'
 
 # Read release note content
 docx_file_path = "Website_Release_Note.docx"
