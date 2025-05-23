@@ -17,14 +17,14 @@ jobs:
           git log -n 10 --pretty=format:"- %s" > release_notes.txt
 
       - name: Send release notes email
-        uses: dawidd6/action-send-mail@v3
+        uses: /action-send-mail@v3
         with:
-          server_address: smtp.yourprovider.com
+          server_address: smtp.gmail.com
           server_port: 587
           secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "New Release Notes"
           body: ${{ steps.release_notes.outputs.notes }}
-          from: "your-email@example.com"
-          to: "superuser@example.com"
+          from: ${{ secrets.EMAIL_USERNAME }}
+          to: "pri39849@gmail.com"
