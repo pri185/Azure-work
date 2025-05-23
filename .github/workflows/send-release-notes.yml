@@ -1,4 +1,4 @@
-name: Send Release Notes
+name: Send Release Email
 
 on:
   push:
@@ -6,25 +6,26 @@ on:
       - main
 
 jobs:
-  send_email:
+  email-release-note:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: Generate release notes
-        run: |
-          git log -n 10 --pretty=format:"- %s" > release_notes.txt
-
-      - name: Send release notes email
-        uses: /action-send-mail@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          secure: true
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "New Release Notes"
-          body: ${{ steps.release_notes.outputs.notes }}
-          from: ${{ secrets.EMAIL_USERNAME }}
-          to: "pri39849@gmail.com"
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Send Release Note Email
+        env:
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+        run: |
+          python Release_Notes/send_email.py
