@@ -9,6 +9,9 @@ def read_docx(file_path):
     doc = Document(file_path)
     return "\n".join([para.text for para in doc.paragraphs])
 
+docx_file_path = "Website_Release_Note.docx"
+content = read_docx(docx_file_path)
+
 def get_latest_release_tag():
     try:
         # Get the latest tag
