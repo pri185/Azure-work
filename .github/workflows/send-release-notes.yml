@@ -1,8 +1,9 @@
 name: Send Release Notes via Gmail SMTP
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
 
 jobs:
   send-email:
