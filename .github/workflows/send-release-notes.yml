@@ -13,7 +13,15 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 🔥 IMPORTANT: Fetch full history including tags
+          fetch-depth: 0  # Fetch full history including tags
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
 
       - name: Set up Python
         uses: actions/setup-python@v4
