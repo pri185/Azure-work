@@ -9,6 +9,7 @@ from docx import Document
 def get_latest_release_tag():
     try:
         tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).strip().decode()
+        print(f"🔍 Latest Git tag found: {tag}")
         return tag
     except subprocess.CalledProcessError:
         print("⚠️ No tags found, starting from v1.0.0")
@@ -20,7 +21,9 @@ def increment_version(tag):
     if match:
         major, minor, patch = map(int, match.groups())
         patch += 1
-        return f"v{major}.{minor}.{patch}"
+        new_version = f"v{major}.{minor}.{patch}"
+        print(f"⬆️ Incremented version: {new_version}")
+        return new_version
     print("⚠️ Invalid tag format, defaulting to v1.0.0")
     return "v1.0.0"
 
@@ -38,6 +41,7 @@ def read_docx(file_path):
     try:
         doc = Document(file_path)
         content = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+        print("📄 Read release note content from DOCX.")
         return content if content else "(No content found in release note.)"
     except Exception as e:
         print(f"❌ Failed to read DOCX: {e}")
@@ -66,6 +70,7 @@ def send_email_with_release(tag, content, docx_path):
             msg.add_attachment(file_data, maintype='application',
                                subtype='vnd.openxmlformats-officedocument.wordprocessingml.document',
                                filename=file_name)
+        print(f"📎 Attached release note file: {file_name}")
     except Exception as e:
         print(f"❌ Failed to attach DOCX: {e}")
 
@@ -73,7 +78,7 @@ def send_email_with_release(tag, content, docx_path):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(sender, password)
             smtp.send_message(msg)
-        print("✅ Email sent successfully.")
+        print(f"✅ Email sent successfully to {receiver} with subject: {msg['Subject']}")
     except Exception as e:
         print(f"❌ Email sending failed: {e}")
 
