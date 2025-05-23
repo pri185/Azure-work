@@ -4,6 +4,11 @@ import smtplib
 from email.message import EmailMessage
 import re
 
+# Read content from docx
+def read_docx(file_path):
+    doc = Document(file_path)
+    return "\n".join([para.text for para in doc.paragraphs])
+
 def get_latest_release_tag():
     try:
         # Get the latest tag
