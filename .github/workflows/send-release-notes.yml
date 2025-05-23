@@ -1,4 +1,4 @@
-name: Send Release Notes via Gmail SMTP
+name: Send Release Notes
 
 on:
   push:
@@ -6,28 +6,25 @@ on:
       - main
 
 jobs:
-  send-email:
+  send_email:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set release notes environment variable
-        run: echo "RELEASE_BODY<<EOF"$'\n'"${{ github.event.release.body }}"$'\n'EOF >> $GITHUB_ENV
+      - name: Generate release notes
+        run: |
+          git log -n 10 --pretty=format:"- %s" > release_notes.txt
 
       - name: Send release notes email
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: ${{ secrets.SMTP_HOST }}
-          server_port: ${{ secrets.SMTP_PORT }}
-          username: ${{ secrets.SMTP_USER }}
-          password: ${{ secrets.SMTP_PASS }}
-          subject: "New Release: ${{ github.event.release.name }}"
-          to: ${{ secrets.EMAIL_TO }}
-          from: ${{ secrets.EMAIL_FROM }}
-          content_type: text/html
-          body: |
-            <h2>Release: ${{ github.event.release.name }}</h2>
-            <p>${{ env.RELEASE_BODY }}</p>
-            <p><a href="${{ github.event.release.html_url }}">View Release on GitHub</a></p>
+          server_address: smtp.yourprovider.com
+          server_port: 587
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "New Release Notes"
+          body: ${{ steps.release_notes.outputs.notes }}
+          from: "your-email@example.com"
+          to: "superuser@example.com"
