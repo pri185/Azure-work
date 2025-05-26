@@ -17,19 +17,6 @@ def get_latest_release_tag():
         print("⚠️ No tags found, starting from v1.0.0")
         return "v1.0.0"
 
-# 🔹 Increment patch version (expects format vX.Y.Z)
-def increment_version(tag):
-    match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", tag)
-    if match:
-        major, minor, patch = map(int, match.groups())
-        patch += 1
-        new_version = f"v{major}.{minor}.{patch}"
-        print(f"⬆️ Incremented version: {new_version}")
-        return new_version
-    else:
-        print("⚠️ Invalid tag format, defaulting to v1.0.0")
-        return "v1.0.0"
-
 # 🔹 Check if tag exists locally or remotely
 def tag_exists(tag):
     try:
@@ -38,11 +25,25 @@ def tag_exists(tag):
     except subprocess.CalledProcessError:
         return False
 
-# 🔹 Tag the new release and push it if tag does not exist
+# 🔹 Increment patch version until unused tag is found
+def increment_version_until_free(latest_tag):
+    match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", latest_tag)
+    if not match:
+        print("⚠️ Invalid tag format, defaulting to v1.0.0")
+        return "v1.0.0"
+    major, minor, patch = map(int, match.groups())
+    
+    while True:
+        patch += 1
+        new_tag = f"v{major}.{minor}.{patch}"
+        if not tag_exists(new_tag):
+            print(f"⬆️ New version available: {new_tag}")
+            return new_tag
+        else:
+            print(f"⚠️ Tag {new_tag} already exists. Trying next patch...")
+
+# 🔹 Tag the new release and push it
 def tag_and_push(tag):
-    if tag_exists(tag):
-        print(f"⚠️ Tag {tag} already exists. Skipping tagging.")
-        return
     try:
         subprocess.run(['git', 'tag', tag], check=True)
         subprocess.run(['git', 'push', 'origin', tag], check=True)
@@ -50,7 +51,7 @@ def tag_and_push(tag):
     except subprocess.CalledProcessError as e:
         print(f"❌ Git tagging failed: {e}")
 
-# 🔹 Read content from .docx file (unchanged, just read)
+# 🔹 Read content from .docx file
 def read_docx(file_path):
     try:
         doc = Document(file_path)
@@ -121,7 +122,7 @@ def send_email_with_release(tag, content, docx_path):
 if __name__ == "__main__":
     DOCX_PATH = "Website_Release_Note.docx"
     latest_tag = get_latest_release_tag()
-    new_tag = increment_version(latest_tag)
+    new_tag = increment_version_until_free(latest_tag)
     tag_and_push(new_tag)
     content = read_docx(DOCX_PATH)
     send_email_with_release(new_tag, content, DOCX_PATH)
