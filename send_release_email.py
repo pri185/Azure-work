@@ -2,7 +2,7 @@ import os
 import smtplib
 import subprocess
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 from docx import Document
 
@@ -61,6 +61,14 @@ def read_docx(file_path):
         print(f"❌ Failed to read DOCX: {e}")
         return "(Error reading release note.)"
 
+# 🔹 Get DOCX file's last modified time formatted in IST
+def get_docx_modification_time(docx_path):
+    mod_timestamp = os.path.getmtime(docx_path)
+    mod_datetime_utc = datetime.fromtimestamp(mod_timestamp, tz=timezone.utc)
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+    mod_datetime_ist = mod_datetime_utc + IST_OFFSET
+    return mod_datetime_ist.strftime("%Y-%m-%d %H:%M IST")
+
 # 🔹 Send email with release note, dynamic version and date in subject/body, and attach unchanged DOCX
 def send_email_with_release(tag, content, docx_path):
     sender = os.getenv("EMAIL_SENDER")
@@ -77,7 +85,7 @@ def send_email_with_release(tag, content, docx_path):
         print("❌ Missing required environment variables: EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER")
         return
 
-    release_date = datetime.now().strftime("%Y-%m-%d")
+    release_date = get_docx_modification_time(docx_path)
     intro = f"<b>📦 Version:</b> {tag}<br><b>🗓️ Release Date:</b> {release_date}<br><br>"
     full_body = intro + content.replace("\n", "<br>")
 
