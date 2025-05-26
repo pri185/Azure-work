@@ -9,6 +9,9 @@ from docx import Document
 # 🔹 Get the latest release tag or initialize to v1.0.0
 def get_latest_release_tag():
     try:
+        # Make sure all tags from remote are fetched
+        subprocess.run(['git', 'fetch', '--tags'], check=True)
+
         tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).strip().decode()
         print(f"🔍 Latest Git tag found: {tag}")
         return tag
@@ -37,7 +40,7 @@ def tag_and_push(tag):
     except subprocess.CalledProcessError as e:
         print(f"❌ Git tagging failed: {e}")
 
-# 🔹 Read content from .docx file
+# 🔹 Read content from .docx file (excluding version/date)
 def read_docx(file_path):
     try:
         doc = Document(file_path)
@@ -65,7 +68,7 @@ def send_email_with_release(tag, content, docx_path):
         return
 
     release_date = datetime.now().strftime("%Y-%m-%d")
-    intro = f"📦 <b>Version:</b> {tag}<br>🗓️ <b>Release Date:</b> {release_date}<br><br>"
+    intro = f"<b>📦 Version:</b> {tag}<br><b>🗓️ Release Date:</b> {release_date}<br><br>"
     full_body = intro + content.replace("\n", "<br>")
 
     msg = EmailMessage()
