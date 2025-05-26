@@ -2,12 +2,14 @@ import os
 import smtplib
 import subprocess
 import re
+from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 from docx import Document
 
 # 🔹 Get the latest release tag or initialize to v1.0.0
 def get_latest_release_tag():
     try:
+        subprocess.run(['git', 'fetch', '--tags'], check=True)
         tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).strip().decode()
         print(f"🔍 Latest Git tag found: {tag}")
         return tag
@@ -15,20 +17,32 @@ def get_latest_release_tag():
         print("⚠️ No tags found, starting from v1.0.0")
         return "v1.0.0"
 
-# 🔹 Increment patch version
+# 🔹 Increment patch version (expects format vX.Y.Z)
 def increment_version(tag):
-    match = re.match(r"v?(\d+)\.(\d+)\.(\d+)", tag)
+    match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", tag)
     if match:
         major, minor, patch = map(int, match.groups())
         patch += 1
         new_version = f"v{major}.{minor}.{patch}"
         print(f"⬆️ Incremented version: {new_version}")
         return new_version
-    print("⚠️ Invalid tag format, defaulting to v1.0.0")
-    return "v1.0.0"
+    else:
+        print("⚠️ Invalid tag format, defaulting to v1.0.0")
+        return "v1.0.0"
 
-# 🔹 Tag the new release and push it
+# 🔹 Check if tag exists locally or remotely
+def tag_exists(tag):
+    try:
+        subprocess.run(['git', 'rev-parse', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+# 🔹 Tag the new release and push it if tag does not exist
 def tag_and_push(tag):
+    if tag_exists(tag):
+        print(f"⚠️ Tag {tag} already exists. Skipping tagging.")
+        return
     try:
         subprocess.run(['git', 'tag', tag], check=True)
         subprocess.run(['git', 'push', 'origin', tag], check=True)
@@ -36,7 +50,7 @@ def tag_and_push(tag):
     except subprocess.CalledProcessError as e:
         print(f"❌ Git tagging failed: {e}")
 
-# 🔹 Read content from .docx file
+# 🔹 Read content from .docx file (unchanged, just read)
 def read_docx(file_path):
     try:
         doc = Document(file_path)
@@ -47,46 +61,67 @@ def read_docx(file_path):
         print(f"❌ Failed to read DOCX: {e}")
         return "(Error reading release note.)"
 
-# 🔹 Send email with release note
-def send_email_with_release(tag, content, docx_path):
-    sender = os.environ.get("EMAIL_SENDER")
-    password = os.environ.get("EMAIL_PASSWORD")
-    receiver = os.environ.get("EMAIL_RECEIVER")
+# 🔹 Get DOCX file's last modified time formatted in IST
+def get_docx_modification_time(docx_path):
+    mod_timestamp = os.path.getmtime(docx_path)
+    mod_datetime_utc = datetime.fromtimestamp(mod_timestamp, tz=timezone.utc)
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+    mod_datetime_ist = mod_datetime_utc + IST_OFFSET
+    return mod_datetime_ist.strftime("%Y-%m-%d %H:%M IST")
 
-    if not all([sender, password, receiver]):
-        print("❌ Missing email environment variables.")
+# 🔹 Send email with release note, dynamic version and date in subject/body, and attach unchanged DOCX
+def send_email_with_release(tag, content, docx_path):
+    sender = os.getenv("EMAIL_SENDER")
+    password = os.getenv("EMAIL_PASSWORD")
+    receivers = os.getenv("EMAIL_RECEIVER", "")
+    cc_list = os.getenv("EMAIL_CC", "")
+    bcc_list = os.getenv("EMAIL_BCC", "")
+
+    to_emails = [email.strip() for email in receivers.split(',') if email.strip()]
+    cc_emails = [email.strip() for email in cc_list.split(',') if email.strip()]
+    bcc_emails = [email.strip() for email in bcc_list.split(',') if email.strip()]
+
+    if not sender or not password or not to_emails:
+        print("❌ Missing required environment variables: EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER")
         return
 
+    release_date = get_docx_modification_time(docx_path)
+    intro = f"<b>📦 Version:</b> {tag}<br><b>🗓️ Release Date:</b> {release_date}<br><br>"
+    full_body = intro + content.replace("\n", "<br>")
+
     msg = EmailMessage()
-    msg['Subject'] = f'📦 Website Release Note - Version {tag}'
+    msg['Subject'] = f"📢 Website Release Note - {tag}"
     msg['From'] = sender
-    msg['To'] = receiver
-    msg.set_content(content)
+    msg['To'] = ", ".join(to_emails)
+    if cc_emails:
+        msg['Cc'] = ", ".join(cc_emails)
+
+    all_recipients = to_emails + cc_emails + bcc_emails
+    msg.set_content(full_body, subtype='html')
 
     try:
         with open(docx_path, 'rb') as f:
-            file_data = f.read()
-            file_name = os.path.basename(f.name)
-            msg.add_attachment(file_data, maintype='application',
+            msg.add_attachment(f.read(),
+                               maintype='application',
                                subtype='vnd.openxmlformats-officedocument.wordprocessingml.document',
-                               filename=file_name)
-        print(f"📎 Attached release note file: {file_name}")
+                               filename=os.path.basename(docx_path))
+        print("📎 Attached .docx file.")
     except Exception as e:
         print(f"❌ Failed to attach DOCX: {e}")
 
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(sender, password)
-            smtp.send_message(msg)
-        print(f"✅ Email sent successfully to {receiver} with subject: {msg['Subject']}")
+            smtp.send_message(msg, to_addrs=all_recipients)
+        print(f"✅ Email sent to: {', '.join(all_recipients)}")
     except Exception as e:
         print(f"❌ Email sending failed: {e}")
 
-# 🔹 Main execution
+# 🔹 Main
 if __name__ == "__main__":
-    docx_file_path = "Website_Release_Note.docx"
+    DOCX_PATH = "Website_Release_Note.docx"
     latest_tag = get_latest_release_tag()
     new_tag = increment_version(latest_tag)
     tag_and_push(new_tag)
-    content = read_docx(docx_file_path)
-    send_email_with_release(new_tag, content, docx_file_path)
+    content = read_docx(DOCX_PATH)
+    send_email_with_release(new_tag, content, DOCX_PATH)
