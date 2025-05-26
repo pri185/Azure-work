@@ -9,9 +9,7 @@ from docx import Document
 # 🔹 Get the latest release tag or initialize to v1.0.0
 def get_latest_release_tag():
     try:
-        # Make sure all tags from remote are fetched
         subprocess.run(['git', 'fetch', '--tags'], check=True)
-
         tag = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).strip().decode()
         print(f"🔍 Latest Git tag found: {tag}")
         return tag
@@ -19,20 +17,32 @@ def get_latest_release_tag():
         print("⚠️ No tags found, starting from v1.0.0")
         return "v1.0.0"
 
-# 🔹 Increment patch version
+# 🔹 Increment patch version (expects format vX.Y.Z)
 def increment_version(tag):
-    match = re.match(r"v?(\d+)\.(\d+)\.(\d+)", tag)
+    match = re.match(r"^v(\d+)\.(\d+)\.(\d+)$", tag)
     if match:
         major, minor, patch = map(int, match.groups())
         patch += 1
         new_version = f"v{major}.{minor}.{patch}"
         print(f"⬆️ Incremented version: {new_version}")
         return new_version
-    print("⚠️ Invalid tag format, defaulting to v1.0.0")
-    return "v1.0.0"
+    else:
+        print("⚠️ Invalid tag format, defaulting to v1.0.0")
+        return "v1.0.0"
 
-# 🔹 Tag the new release and push it
+# 🔹 Check if tag exists locally or remotely
+def tag_exists(tag):
+    try:
+        subprocess.run(['git', 'rev-parse', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+# 🔹 Tag the new release and push it if tag does not exist
 def tag_and_push(tag):
+    if tag_exists(tag):
+        print(f"⚠️ Tag {tag} already exists. Skipping tagging.")
+        return
     try:
         subprocess.run(['git', 'tag', tag], check=True)
         subprocess.run(['git', 'push', 'origin', tag], check=True)
@@ -40,7 +50,7 @@ def tag_and_push(tag):
     except subprocess.CalledProcessError as e:
         print(f"❌ Git tagging failed: {e}")
 
-# 🔹 Read content from .docx file (excluding version/date)
+# 🔹 Read content from .docx file (unchanged, just read)
 def read_docx(file_path):
     try:
         doc = Document(file_path)
@@ -51,7 +61,7 @@ def read_docx(file_path):
         print(f"❌ Failed to read DOCX: {e}")
         return "(Error reading release note.)"
 
-# 🔹 Send email with release note
+# 🔹 Send email with release note, dynamic version and date in subject/body, and attach unchanged DOCX
 def send_email_with_release(tag, content, docx_path):
     sender = os.getenv("EMAIL_SENDER")
     password = os.getenv("EMAIL_PASSWORD")
@@ -83,7 +93,8 @@ def send_email_with_release(tag, content, docx_path):
 
     try:
         with open(docx_path, 'rb') as f:
-            msg.add_attachment(f.read(), maintype='application',
+            msg.add_attachment(f.read(),
+                               maintype='application',
                                subtype='vnd.openxmlformats-officedocument.wordprocessingml.document',
                                filename=os.path.basename(docx_path))
         print("📎 Attached .docx file.")
