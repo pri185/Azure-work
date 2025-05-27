@@ -2,6 +2,7 @@ import os
 import smtplib
 import subprocess
 import re
+import html
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 from docx import Document
@@ -32,7 +33,7 @@ def increment_version_until_free(latest_tag):
         print("⚠️ Invalid tag format, defaulting to v1.0.0")
         return "v1.0.0"
     major, minor, patch = map(int, match.groups())
-    
+
     while True:
         patch += 1
         new_tag = f"v{major}.{minor}.{patch}"
@@ -88,7 +89,8 @@ def send_email_with_release(tag, content, docx_path):
 
     release_date = get_docx_modification_time(docx_path)
     intro = f"<b>📦 Version:</b> {tag}<br><b>🗓️ Release Date:</b> {release_date}<br><br>"
-    full_body = intro + content.replace("\n", "<br>")
+    safe_content = html.escape(content).replace("\n", "<br>")
+    full_body = intro + safe_content
 
     msg = EmailMessage()
     msg['Subject'] = f"📢 Website Release Note - {tag}"
@@ -98,8 +100,14 @@ def send_email_with_release(tag, content, docx_path):
         msg['Cc'] = ", ".join(cc_emails)
 
     all_recipients = to_emails + cc_emails + bcc_emails
-    msg.set_content(full_body, subtype='html')
 
+    # Plain text fallback
+    msg.set_content("This is an HTML email. Please view it in an HTML-compatible email client.")
+
+    # Add HTML version
+    msg.add_alternative(full_body, subtype='html')
+
+    # Attach DOCX
     try:
         with open(docx_path, 'rb') as f:
             msg.add_attachment(f.read(),
@@ -110,6 +118,7 @@ def send_email_with_release(tag, content, docx_path):
     except Exception as e:
         print(f"❌ Failed to attach DOCX: {e}")
 
+    # Send Email
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(sender, password)
